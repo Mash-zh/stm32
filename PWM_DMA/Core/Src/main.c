@@ -18,7 +18,8 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-
+#include <stdio.h>
+#include <stdint.h>
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
@@ -31,7 +32,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+#define BUFFER_SIZE (64 * 2 * 32)
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -58,6 +59,7 @@ static void MX_TIM2_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+static uint16_t dma_buffer[BUFFER_SIZE] = { 0 };
 
 /* USER CODE END 0 */
 
@@ -69,7 +71,32 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-
+	for (uint16_t i = 0; i < BUFFER_SIZE; i++) { // OE
+		dma_buffer[i] |= 1 << 0;
+	}
+	for (uint16_t i = 0; i < BUFFER_SIZE; i++) {// OE
+		if (i%128 <64)
+		{
+			dma_buffer[i] &= ~(1 << 0);
+		}	
+	}
+	
+	for(uint16_t i = 0; i < BUFFER_SIZE; i++) { // ABCDE
+		dma_buffer[i] |= i/128 << 3;
+	}
+	for (uint16_t i = 1; i < BUFFER_SIZE; i++) { //LAT
+		if (i % 128 == 0) {
+			dma_buffer[i] |= 1 << 1;
+		}
+	}
+	for (uint16_t i = 1; i < BUFFER_SIZE; i++) { //R1,R2 = 1
+		dma_buffer[i] |= 9 << 8;
+	}
+	for (uint16_t i = 1; i < BUFFER_SIZE; i++) { //CLK
+		if (i % 2 != 0) {
+			dma_buffer[i] |= 1 << 14;
+		}
+	}
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -90,16 +117,13 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  /* MX_DMA_Init 必须在 MX_TIM2_Init 之前：TIM MSP 里会 HAL_DMA_Init，需先打开 DMA1 时钟 */
   MX_DMA_Init();
   MX_TIM2_Init();
-  
   /* USER CODE BEGIN 2 */
-  // BSRR?????,?16???????,?16???????
-  uint16_t buff[4*20] ={0x0000, 0x0008, 0x0002, 0x0001,0x0000, 0x0018, 0x0012, 0x0011,0x1000, 0x0018, 0x0012, 0x0011,0x1000, 0x0018, 0x0012, 0x0011,0x1000, 0x0018, 0x0012, 0x0011,0x1000, 0x0018, 0x0012, 0x0011,0x1000, 0x0018, 0x0012, 0x0011,0x1000, 0x0018, 0x0012, 0x0011,0x1000, 0x0018, 0x0012, 0x0011,0x1000, 0x0018, 0x0012, 0x0011,0x1000, 0x0018, 0x0012, 0x0011,0x1000, 0x0018, 0x0012, 0x0011,0x1000, 0x0018, 0x0012, 0x0011,0x1000, 0x0018, 0x0012, 0x0011,0x1000, 0x0018, 0x0012, 0x0011,0x1000, 0x0018, 0x0012, 0x0011,0x1000, 0x0018, 0x0012, 0x0011,0x1000, 0x0018, 0x0012, 0x0011,0x1000, 0x0018, 0x0012, 0x0011,0x1000, 0x0018, 0x0012, 0x0011};
-	
+
+//uint16_t dma_buffer[4] = {0x4101, 0x0000,0x4101, 0x0000};
 	//HAL_DMA_Start(&hdma_tim2_up, (uint32_t)buff, (uint32_t)&GPIOB->ODR, sizeof(buff)/sizeof(buff[0]));
-	HAL_DMA_Start(&hdma_tim2_up, (uint32_t)buff, (uint32_t)&GPIOB->ODR, 80);
+	HAL_DMA_Start(&hdma_tim2_up, (uint32_t)dma_buffer, (uint32_t)&GPIOB->ODR, sizeof(dma_buffer)/sizeof(dma_buffer[0]));
 	__HAL_TIM_ENABLE_DMA(&htim2, TIM_DMA_UPDATE);
 	HAL_TIM_Base_Start(&htim2);
   /* USER CODE END 2 */
@@ -170,9 +194,9 @@ static void MX_TIM2_Init(void)
 
   /* USER CODE END TIM2_Init 1 */
   htim2.Instance = TIM2;
-  htim2.Init.Prescaler = 7;
+  htim2.Init.Prescaler = 3;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim2.Init.Period = 99;
+  htim2.Init.Period = 1;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
   if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
@@ -225,21 +249,31 @@ static void MX_GPIO_Init(void)
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOB_CLK_ENABLE();
+  __HAL_RCC_GPIOA_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_10
-                          |GPIO_PIN_11|GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14
-                          |GPIO_PIN_15|GPIO_PIN_3|GPIO_PIN_4|GPIO_PIN_5
-                          |GPIO_PIN_6|GPIO_PIN_7|GPIO_PIN_8|GPIO_PIN_9, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB, OE_Pin|LAT_Pin|CLK_Pin, GPIO_PIN_SET);
 
-  /*Configure GPIO pins : PB0 PB1 PB2 PB10
-                           PB11 PB12 PB13 PB14
-                           PB15 PB3 PB4 PB5
-                           PB6 PB7 PB8 PB9 */
-  GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_10
-                          |GPIO_PIN_11|GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14
-                          |GPIO_PIN_15|GPIO_PIN_3|GPIO_PIN_4|GPIO_PIN_5
-                          |GPIO_PIN_6|GPIO_PIN_7|GPIO_PIN_8|GPIO_PIN_9;
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOB, B1_Pin|R2_Pin|G2_Pin|B2_Pin
+                          |A_Pin|B_Pin|C_Pin|D_Pin
+                          |E_Pin|R1_Pin|G1_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pins : OE_Pin LAT_Pin B1_Pin R2_Pin
+                           G2_Pin B2_Pin CLK_Pin R1_Pin
+                           G1_Pin */
+  GPIO_InitStruct.Pin = OE_Pin|LAT_Pin|B1_Pin|R2_Pin
+                          |G2_Pin|B2_Pin|CLK_Pin|R1_Pin
+                          |G1_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : A_Pin B_Pin C_Pin D_Pin
+                           E_Pin */
+  GPIO_InitStruct.Pin = A_Pin|B_Pin|C_Pin|D_Pin
+                          |E_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
