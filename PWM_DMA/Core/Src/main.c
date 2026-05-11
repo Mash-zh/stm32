@@ -124,7 +124,7 @@ int main(void)
 		}
 		
 		for (uint16_t i = 0; i < BUFFER_SIZE; i++) {// OE
-			if (i%64 <16 + n*16)
+			if (i%64 <10 + 2*16)
 			{
 				dma_buffer[i + n * BUFFER_SIZE] &= ~(1 << 0);
 			}	
@@ -140,12 +140,17 @@ int main(void)
 		}
 		if(n == 0){
 			for (uint16_t i = 1; i < BUFFER_SIZE; i++) { //R1,R2 = 1
-				dma_buffer[i + n * BUFFER_SIZE] |=  0x01<< 8;     //0b 00 1001
+				dma_buffer[i + n * BUFFER_SIZE] |=  0x29<< 8;    //0b 101 001
 			}
 		}
 		if(n == 1){
 			for (uint16_t i = 1; i < BUFFER_SIZE; i++) { //R1,R2 = 1
-				dma_buffer[i + n * BUFFER_SIZE] |= 0x34 << 8;    //0b 11 0010
+				dma_buffer[i + n * BUFFER_SIZE] |= 0x36 << 8;    //0b 110 110
+			}
+		}
+		if(n == 2){
+			for (uint16_t i = 1; i < BUFFER_SIZE; i++) { //R1,R2 = 1
+				dma_buffer[i + n * BUFFER_SIZE] |= 0x33 << 8;    //0b 110 011
 			}
 		}
 		
@@ -173,13 +178,15 @@ int main(void)
   MX_DMA_Init();
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
-
-//uint16_t dma_buffer[4] = {0x4101, 0x0000,0x4101, 0x0000};
-	//HAL_DMA_Start(&hdma_tim2_up, (uint32_t)buff, (uint32_t)&GPIOB->ODR, sizeof(buff)/sizeof(buff[0]));
+	
+  /* 连接定时器与DMA， 定时器设置频率，DMA搬运数据
+	*  若定时器频率为1KHz，则DMA每1ms搬运一个数据。*/
 	HAL_DMA_Start(&hdma_tim2_up, (uint32_t)dma_buffer, (uint32_t)&GPIOB->ODR, sizeof(dma_buffer)/sizeof(dma_buffer[0]));
 	__HAL_TIM_ENABLE_DMA(&htim2, TIM_DMA_UPDATE);
 	HAL_TIM_Base_Start(&htim2);
-  /* USER CODE END 2 */
+	
+  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_2); //开启PWM CLK（PA1）
+	/* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
@@ -248,7 +255,7 @@ static void MX_TIM2_Init(void)
 
   /* USER CODE END TIM2_Init 1 */
   htim2.Instance = TIM2;
-  htim2.Init.Prescaler = 3;
+  htim2.Init.Prescaler = 1;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim2.Init.Period = 3;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
