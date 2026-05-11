@@ -18,8 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include <stdio.h>
-#include <stdint.h>
+
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
@@ -32,7 +31,8 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define BUFFER_SIZE (64 * 2 * 32)
+#define BUFFER_SIZE (64 * 32)
+#define Depth 2
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -59,7 +59,7 @@ static void MX_TIM2_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-static uint16_t dma_buffer[BUFFER_SIZE] = { 0 };
+
 
 /* USER CODE END 0 */
 
@@ -71,31 +71,84 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-	for (uint16_t i = 0; i < BUFFER_SIZE; i++) { // OE
-		dma_buffer[i] |= 1 << 0;
-	}
-	for (uint16_t i = 0; i < BUFFER_SIZE; i++) {// OE
-		if (i%128 <64)
-		{
-			dma_buffer[i] &= ~(1 << 0);
-		}	
-	}
 	
-	for(uint16_t i = 0; i < BUFFER_SIZE; i++) { // ABCDE
-		dma_buffer[i] |= i/128 << 3;
-	}
-	for (uint16_t i = 1; i < BUFFER_SIZE; i++) { //LAT
-		if (i % 128 == 0) {
-			dma_buffer[i] |= 1 << 1;
+	/*CLK波由PB14产生，数组长�?*2*//*
+	static uint16_t dma_buffer[BUFFER_SIZE*Depth*2] = { 0 };
+	for (uint16_t n = 0; n < Depth; n++) {
+		
+		for (uint16_t i = 0; i < BUFFER_SIZE; i++) { // OE
+			dma_buffer[i + n * BUFFER_SIZE] |= 1 << 0;
 		}
-	}
-	for (uint16_t i = 1; i < BUFFER_SIZE; i++) { //R1,R2 = 1
-		dma_buffer[i] |= 9 << 8;
-	}
-	for (uint16_t i = 1; i < BUFFER_SIZE; i++) { //CLK
-		if (i % 2 != 0) {
-			dma_buffer[i] |= 1 << 14;
+		
+		for (uint16_t i = 0; i < BUFFER_SIZE; i++) {// OE
+			if (i%128 <32 + n*64)
+			{
+				dma_buffer[i + n * BUFFER_SIZE] &= ~(1 << 0);
+			}	
 		}
+		
+		for(uint16_t i = 0; i < BUFFER_SIZE; i++) { // ABCDE
+			dma_buffer[i + n * BUFFER_SIZE] |= i/128 << 3;
+		}
+		for (uint16_t i = 1; i < BUFFER_SIZE; i++) { //LAT
+			if (i % 128 == 0) {
+				dma_buffer[i + n * BUFFER_SIZE] |= 1 << 1;
+			}
+		}
+		if(n == 0){
+			for (uint16_t i = 1; i < BUFFER_SIZE; i++) { //R1,R2 = 1
+				dma_buffer[i + n * BUFFER_SIZE] |=  0x09<< 8;     //0b 00 1001
+			}
+		}
+		if(n == 1){
+			for (uint16_t i = 1; i < BUFFER_SIZE; i++) { //R1,R2 = 1
+				dma_buffer[i + n * BUFFER_SIZE] |= 0x34 << 8;    //0b 11 0010
+			}
+		}
+		
+		for (uint16_t i = 1; i < BUFFER_SIZE; i++) { //CLK
+			if (i % 2 != 0) {
+				dma_buffer[i + n * BUFFER_SIZE] |= 1 << 14;
+			}
+		}
+		
+	} */
+	/*CLK波由PB14产生，数组长�?*2*/
+	
+	/*CLK波由TIM2 channel2 (PA1)产生*/
+	static uint16_t dma_buffer[BUFFER_SIZE*Depth] = { 0 };
+	for (uint16_t n = 0; n < Depth; n++) {
+		
+		for (uint16_t i = 0; i < BUFFER_SIZE; i++) { // OE
+			dma_buffer[i + n * BUFFER_SIZE] |= 1 << 0;
+		}
+		
+		for (uint16_t i = 0; i < BUFFER_SIZE; i++) {// OE
+			if (i%64 <16 + n*16)
+			{
+				dma_buffer[i + n * BUFFER_SIZE] &= ~(1 << 0);
+			}	
+		}
+		
+		for(uint16_t i = 0; i < BUFFER_SIZE; i++) { // ABCDE
+			dma_buffer[i + n * BUFFER_SIZE] |= i/64 << 3;
+		}
+		for (uint16_t i = 1; i < BUFFER_SIZE; i++) { //LAT
+			if (i % 64 == 0) {
+				dma_buffer[i + n * BUFFER_SIZE] |= 1 << 1;
+			}
+		}
+		if(n == 0){
+			for (uint16_t i = 1; i < BUFFER_SIZE; i++) { //R1,R2 = 1
+				dma_buffer[i + n * BUFFER_SIZE] |=  0x01<< 8;     //0b 00 1001
+			}
+		}
+		if(n == 1){
+			for (uint16_t i = 1; i < BUFFER_SIZE; i++) { //R1,R2 = 1
+				dma_buffer[i + n * BUFFER_SIZE] |= 0x34 << 8;    //0b 11 0010
+			}
+		}
+		
 	}
   /* USER CODE END 1 */
 
@@ -189,6 +242,7 @@ static void MX_TIM2_Init(void)
 
   TIM_ClockConfigTypeDef sClockSourceConfig = {0};
   TIM_MasterConfigTypeDef sMasterConfig = {0};
+  TIM_OC_InitTypeDef sConfigOC = {0};
 
   /* USER CODE BEGIN TIM2_Init 1 */
 
@@ -196,7 +250,7 @@ static void MX_TIM2_Init(void)
   htim2.Instance = TIM2;
   htim2.Init.Prescaler = 3;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim2.Init.Period = 1;
+  htim2.Init.Period = 3;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
   if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
@@ -208,15 +262,28 @@ static void MX_TIM2_Init(void)
   {
     Error_Handler();
   }
+  if (HAL_TIM_PWM_Init(&htim2) != HAL_OK)
+  {
+    Error_Handler();
+  }
   sMasterConfig.MasterOutputTrigger = TIM_TRGO_UPDATE;
   sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
   if (HAL_TIMEx_MasterConfigSynchronization(&htim2, &sMasterConfig) != HAL_OK)
   {
     Error_Handler();
   }
+  sConfigOC.OCMode = TIM_OCMODE_PWM1;
+  sConfigOC.Pulse = 2;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+  if (HAL_TIM_PWM_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_2) != HAL_OK)
+  {
+    Error_Handler();
+  }
   /* USER CODE BEGIN TIM2_Init 2 */
 
   /* USER CODE END TIM2_Init 2 */
+  HAL_TIM_MspPostInit(&htim2);
 
 }
 
@@ -248,8 +315,8 @@ static void MX_GPIO_Init(void)
 /* USER CODE END MX_GPIO_Init_1 */
 
   /* GPIO Ports Clock Enable */
-  __HAL_RCC_GPIOB_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, OE_Pin|LAT_Pin|CLK_Pin, GPIO_PIN_SET);
