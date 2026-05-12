@@ -21,7 +21,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "image.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -32,7 +32,7 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define BUFFER_SIZE (64 * 32)
-#define Depth 2
+#define Depth 4
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -45,6 +45,7 @@ TIM_HandleTypeDef htim2;
 DMA_HandleTypeDef hdma_tim2_up;
 
 /* USER CODE BEGIN PV */
+//static uint16_t dma_buffer[BUFFER_SIZE*Depth] = { 0 };
 
 /* USER CODE END PV */
 
@@ -54,12 +55,17 @@ static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
 static void MX_TIM2_Init(void);
 /* USER CODE BEGIN PFP */
-
+//static uint16_t dma_buffer[10] = {0x0000, 0xffff,0x0000, 0xffff,0x0000, 0xffff,0x0000, 0xffff,0x0000, 0xffff};
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
+/*DMA全满搬运回调函数*/
+void XferCpltCallback(DMA_HandleTypeDef  *hdma){
+	if(hdma->Instance == hdma_tim2_up.Instance){
+		HAL_DMA_Start_IT(&hdma_tim2_up, (uint32_t)dma_buffer, (uint32_t)&GPIOB->ODR, sizeof(dma_buffer)/sizeof(dma_buffer[0]));
+	}
+}
 
 /* USER CODE END 0 */
 
@@ -72,89 +78,8 @@ int main(void)
 
   /* USER CODE BEGIN 1 */
 	
-	/*CLK波由PB14产生，数组长�?*2*//*
-	static uint16_t dma_buffer[BUFFER_SIZE*Depth*2] = { 0 };
-	for (uint16_t n = 0; n < Depth; n++) {
-		
-		for (uint16_t i = 0; i < BUFFER_SIZE; i++) { // OE
-			dma_buffer[i + n * BUFFER_SIZE] |= 1 << 0;
-		}
-		
-		for (uint16_t i = 0; i < BUFFER_SIZE; i++) {// OE
-			if (i%128 <32 + n*64)
-			{
-				dma_buffer[i + n * BUFFER_SIZE] &= ~(1 << 0);
-			}	
-		}
-		
-		for(uint16_t i = 0; i < BUFFER_SIZE; i++) { // ABCDE
-			dma_buffer[i + n * BUFFER_SIZE] |= i/128 << 3;
-		}
-		for (uint16_t i = 1; i < BUFFER_SIZE; i++) { //LAT
-			if (i % 128 == 0) {
-				dma_buffer[i + n * BUFFER_SIZE] |= 1 << 1;
-			}
-		}
-		if(n == 0){
-			for (uint16_t i = 1; i < BUFFER_SIZE; i++) { //R1,R2 = 1
-				dma_buffer[i + n * BUFFER_SIZE] |=  0x09<< 8;     //0b 00 1001
-			}
-		}
-		if(n == 1){
-			for (uint16_t i = 1; i < BUFFER_SIZE; i++) { //R1,R2 = 1
-				dma_buffer[i + n * BUFFER_SIZE] |= 0x34 << 8;    //0b 11 0010
-			}
-		}
-		
-		for (uint16_t i = 1; i < BUFFER_SIZE; i++) { //CLK
-			if (i % 2 != 0) {
-				dma_buffer[i + n * BUFFER_SIZE] |= 1 << 14;
-			}
-		}
-		
-	} */
-	/*CLK波由PB14产生，数组长�?*2*/
-	
 	/*CLK波由TIM2 channel2 (PA1)产生*/
-	static uint16_t dma_buffer[BUFFER_SIZE*Depth] = { 0 };
-	for (uint16_t n = 0; n < Depth; n++) {
-		
-		for (uint16_t i = 0; i < BUFFER_SIZE; i++) { // OE
-			dma_buffer[i + n * BUFFER_SIZE] |= 1 << 0;
-		}
-		
-		for (uint16_t i = 0; i < BUFFER_SIZE; i++) {// OE
-			if (i%64 <10 + 2*16)
-			{
-				dma_buffer[i + n * BUFFER_SIZE] &= ~(1 << 0);
-			}	
-		}
-		
-		for(uint16_t i = 0; i < BUFFER_SIZE; i++) { // ABCDE
-			dma_buffer[i + n * BUFFER_SIZE] |= i/64 << 3;
-		}
-		for (uint16_t i = 1; i < BUFFER_SIZE; i++) { //LAT
-			if (i % 64 == 0) {
-				dma_buffer[i + n * BUFFER_SIZE] |= 1 << 1;
-			}
-		}
-		if(n == 0){
-			for (uint16_t i = 1; i < BUFFER_SIZE; i++) { //R1,R2 = 1
-				dma_buffer[i + n * BUFFER_SIZE] |=  0x29<< 8;    //0b 101 001
-			}
-		}
-		if(n == 1){
-			for (uint16_t i = 1; i < BUFFER_SIZE; i++) { //R1,R2 = 1
-				dma_buffer[i + n * BUFFER_SIZE] |= 0x36 << 8;    //0b 110 110
-			}
-		}
-		if(n == 2){
-			for (uint16_t i = 1; i < BUFFER_SIZE; i++) { //R1,R2 = 1
-				dma_buffer[i + n * BUFFER_SIZE] |= 0x33 << 8;    //0b 110 011
-			}
-		}
-		
-	}
+	
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -179,14 +104,15 @@ int main(void)
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
 	
-  /* 连接定时器与DMA， 定时器设置频率，DMA搬运数据
-	*  若定时器频率为1KHz，则DMA每1ms搬运一个数据。*/
-	HAL_DMA_Start(&hdma_tim2_up, (uint32_t)dma_buffer, (uint32_t)&GPIOB->ODR, sizeof(dma_buffer)/sizeof(dma_buffer[0]));
+  /* 连接定时器与DMA�? 定时器设置频率，DMA搬运数据
+	*  若定时器频率�?1KHz，则DMA�?1ms搬运�?个数据�??*/
+	HAL_DMA_RegisterCallback(&hdma_tim2_up, HAL_DMA_XFER_CPLT_CB_ID, XferCpltCallback); //中断注册函数！！！必须
+	HAL_DMA_Start_IT(&hdma_tim2_up, (uint32_t)dma_buffer, (uint32_t)&GPIOB->ODR, sizeof(dma_buffer)/sizeof(dma_buffer[0]));
 	__HAL_TIM_ENABLE_DMA(&htim2, TIM_DMA_UPDATE);
 	HAL_TIM_Base_Start(&htim2);
 	
-  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_2); //开启PWM CLK（PA1）
-	/* USER CODE END 2 */
+  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_2); //�?启PWM CLK（PA1�?
+  /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
@@ -214,7 +140,9 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
-  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI_DIV2;
+  RCC_OscInitStruct.PLL.PLLMUL = RCC_PLL_MUL2;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
     Error_Handler();
@@ -224,7 +152,7 @@ void SystemClock_Config(void)
   */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
                               |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
-  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSI;
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
@@ -326,7 +254,7 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, OE_Pin|LAT_Pin|CLK_Pin, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(GPIOB, OE_Pin|LAT_Pin|GPIO_PIN_14, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, B1_Pin|R2_Pin|G2_Pin|B2_Pin
@@ -334,10 +262,10 @@ static void MX_GPIO_Init(void)
                           |E_Pin|R1_Pin|G1_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pins : OE_Pin LAT_Pin B1_Pin R2_Pin
-                           G2_Pin B2_Pin CLK_Pin R1_Pin
+                           G2_Pin B2_Pin PB14 R1_Pin
                            G1_Pin */
   GPIO_InitStruct.Pin = OE_Pin|LAT_Pin|B1_Pin|R2_Pin
-                          |G2_Pin|B2_Pin|CLK_Pin|R1_Pin
+                          |G2_Pin|B2_Pin|GPIO_PIN_14|R1_Pin
                           |G1_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;

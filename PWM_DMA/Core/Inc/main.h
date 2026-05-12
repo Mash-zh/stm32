@@ -59,6 +59,8 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define CLK_Pin GPIO_PIN_1
+#define CLK_GPIO_Port GPIOA
 #define OE_Pin GPIO_PIN_0
 #define OE_GPIO_Port GPIOB
 #define LAT_Pin GPIO_PIN_1
@@ -71,8 +73,6 @@ void Error_Handler(void);
 #define G2_GPIO_Port GPIOB
 #define B2_Pin GPIO_PIN_13
 #define B2_GPIO_Port GPIOB
-#define CLK_Pin GPIO_PIN_14
-#define CLK_GPIO_Port GPIOB
 #define A_Pin GPIO_PIN_3
 #define A_GPIO_Port GPIOB
 #define B_Pin GPIO_PIN_4
